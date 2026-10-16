@@ -1,0 +1,1002 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="light dark">
+<meta name="description" content="Pruébate camisas, blazers, lentes, gorros y chalinas con tu cámara. Todo se procesa en tu dispositivo.">
+<title>Probador</title>
+<link rel="icon" href="data:,">
+<style>
+:root{--bg:#f4f3ef;--ink:#121212;--mute:#85857f;--line:rgba(0,0,0,.15);--card:#fff;--r:14px}
+@media (prefers-color-scheme:dark){:root{--bg:#0d0d0d;--ink:#f1f0ec;--mute:#7e7e78;--line:rgba(255,255,255,.2);--card:#181818}}
+*{box-sizing:border-box;margin:0}
+html,body{height:100%}
+body{background:var(--bg);color:var(--ink);font:14px/1.4 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;display:flex;flex-direction:column;height:100vh;height:100dvh;overflow:hidden;-webkit-font-smoothing:antialiased}
+[hidden]{display:none!important}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 18px 10px;padding-top:max(14px,env(safe-area-inset-top))}
+h1{font-size:12px;font-weight:500;letter-spacing:.28em;text-transform:uppercase}
+.bar{display:flex;gap:6px}
+button{font:inherit;color:inherit;background:none;border:1px solid var(--line);border-radius:999px;padding:7px 14px;cursor:pointer;transition:border-color .15s,opacity .15s}
+button:hover:not(:disabled){border-color:var(--ink)}
+button:focus-visible,input:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+button:disabled{opacity:.35;cursor:default}
+button.solid{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+button.quiet{border-color:transparent;color:var(--mute)}
+button.quiet:hover:not(:disabled){color:var(--ink);border-color:transparent}
+#stage{flex:1;min-height:0;position:relative;display:flex;align-items:center;justify-content:center;padding:0 18px}
+#stage.drag::after{content:"Suelta la prenda aquí";position:absolute;inset:0 18px;display:grid;place-items:center;border:1px dashed var(--ink);border-radius:var(--r);background:color-mix(in srgb,var(--bg) 82%,transparent);font-size:13px;letter-spacing:.08em}
+#view{display:none;max-width:100%;max-height:100%;border-radius:var(--r);background:#000}
+#cam{position:fixed;left:0;top:0;width:1px;height:1px;opacity:0;pointer-events:none}
+#splash{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:18px;text-align:center;padding:24px}
+#splash p{max-width:330px;color:var(--mute);font-size:13px}
+#splash button{padding:11px 26px}
+#status{position:absolute;left:50%;bottom:14px;transform:translateX(-50%);max-width:calc(100% - 56px);padding:6px 14px;border-radius:999px;background:color-mix(in srgb,var(--bg) 88%,transparent);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);font-size:12px;text-align:center;pointer-events:none;opacity:0;transition:opacity .2s}
+#status.on{opacity:1}
+#dock{position:relative;padding:10px 18px 14px;padding-bottom:max(14px,env(safe-area-inset-bottom));display:flex;flex-direction:column;align-items:center;gap:10px}
+.card{width:100%;max-width:440px;border:1px solid var(--line);border-radius:var(--r);background:var(--card);padding:14px;display:flex;flex-direction:column;gap:12px}
+#panel,#addbox{position:absolute;bottom:100%;left:50%;transform:translateX(-50%);width:calc(100% - 36px);margin-bottom:4px;z-index:5;max-height:60vh;max-height:60dvh;overflow:auto;box-shadow:0 12px 40px rgba(0,0,0,.2)}
+.row{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.row.wrap{flex-wrap:wrap;justify-content:flex-start}
+#pname{font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{padding:5px 12px;font-size:12px}
+.chip[aria-checked=true]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+label.rng{display:grid;grid-template-columns:78px 1fr;align-items:center;gap:10px;font-size:12px;color:var(--mute)}
+input[type=range]{width:100%;accent-color:var(--ink);height:18px}
+input[type=url]{flex:1;min-width:0;font:inherit;color:inherit;background:none;border:1px solid var(--line);border-radius:999px;padding:8px 14px}
+input[type=url]:focus{border-color:var(--ink)}
+.hint{font-size:12px;color:var(--mute)}
+#items{display:flex;gap:10px;overflow-x:auto;max-width:100%;padding:6px 4px;scrollbar-width:none}
+#items::-webkit-scrollbar{display:none}
+.it{position:relative;flex:none;width:58px;height:58px;border-radius:13px;padding:6px;background:var(--card)}
+.it img{width:100%;height:100%;object-fit:contain;display:block;pointer-events:none;transition:opacity .15s}
+.it[aria-pressed=false] img{opacity:.45}
+.it[aria-pressed=true]{border-color:var(--ink);box-shadow:0 0 0 1px var(--ink)}
+.it.plus{border-style:dashed;font-size:22px;line-height:1;color:var(--mute);padding:0}
+.it.plus[aria-expanded=true]{color:var(--ink);border-color:var(--ink)}
+@media (max-height:640px){header{padding-block:8px}#dock{padding-block:6px 10px}}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Probador</h1>
+  <div class="bar">
+    <button id="btnClear" class="quiet" disabled>Quitar todo</button>
+    <button id="btnShot" disabled>Capturar</button>
+  </div>
+</header>
+
+<main id="stage">
+  <canvas id="view" aria-label="Vista de la cámara con las prendas aplicadas"></canvas>
+  <video id="cam" playsinline muted autoplay></video>
+  <div id="splash">
+    <p>Activa la cámara y añade una prenda. Todo el seguimiento ocurre en tu dispositivo; tu imagen no se envía a ningún servidor.</p>
+    <button id="btnStart" class="solid">Activar cámara</button>
+  </div>
+  <div id="status" role="status" aria-live="polite"></div>
+</main>
+
+<section id="dock">
+  <div id="panel" class="card" hidden>
+    <div class="row"><span id="pname"></span><button id="pclose" class="quiet" aria-label="Cerrar ajustes">Cerrar</button></div>
+    <div class="chips" id="chips" role="radiogroup" aria-label="Tipo de prenda"></div>
+    <label class="rng">Tamaño<input id="sScale" type="range" min="0.6" max="1.6" step="0.01" value="1"></label>
+    <label class="rng">Horizontal<input id="sX" type="range" min="-0.3" max="0.3" step="0.005" value="0"></label>
+    <label class="rng">Vertical<input id="sY" type="range" min="-0.3" max="0.3" step="0.005" value="0"></label>
+    <p id="pnote" class="hint" hidden>El fondo de esta imagen no es uniforme. Prueba «Quitar fondo (IA)».</p>
+    <div class="row wrap">
+      <button id="pai">Quitar fondo (IA)</button>
+      <button id="pdel" class="quiet">Eliminar</button>
+    </div>
+  </div>
+
+  <div id="addbox" class="card" hidden>
+    <form id="urlForm" class="row">
+      <input id="urlIn" type="url" placeholder="Enlace directo de la imagen de la prenda" autocomplete="off" aria-label="Enlace de la imagen">
+      <button class="solid" type="submit">Añadir</button>
+    </form>
+    <div class="row wrap">
+      <button id="btnFile" type="button">Subir archivos</button>
+      <button id="btnDemo" type="button" class="quiet">Probar con ejemplos</button>
+    </div>
+    <p class="hint">También puedes arrastrar una imagen desde otra web, o pegarla con Ctrl+V. Funcionan mejor las fotos de frente y con fondo liso.</p>
+    <input id="fileIn" type="file" accept="image/*" multiple hidden>
+  </div>
+
+  <div id="items" role="group" aria-label="Prendas"></div>
+</section>
+
+<noscript><p style="position:fixed;inset:auto 0 50% 0;text-align:center">Esta página necesita JavaScript.</p></noscript>
+
+<script type="module">
+/* =====================================================================
+   PROBADOR VIRTUAL
+   - Seguimiento: MediaPipe Tasks Vision (PoseLandmarker + FaceLandmarker)
+   - Render: Canvas 2D (deformación en tiras para dar perspectiva)
+   - Filtro One Euro para suavizar temblores sin añadir retraso
+   ===================================================================== */
+
+const MP_VERSION = '0.10.21';
+const MP_BASE    = `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${MP_VERSION}`;
+const MODELS = {
+  // "lite" = más rápido. Para más precisión en hombros cambia a pose_landmarker_full.
+  pose: 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',
+  face: 'https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task'
+};
+const BGREMOVAL_URL = 'https://cdn.jsdelivr.net/npm/@imgly/background-removal@1.7.0/+esm';
+const IMG_PROXY = u => `https://wsrv.nl/?url=${encodeURIComponent(u)}&output=png&w=1000&we`;
+const MAX_STAGE_W = 1280;   // resolución interna máxima del lienzo
+const MAX_GARMENT = 900;    // lado máximo de la imagen de una prenda
+
+/* Tipos de prenda. z = orden de capas. k = ancho de la prenda relativo a la referencia corporal. */
+const CATS = {
+  top:     { label: 'Camisa',  z: 1, tracker: 'pose', k: 1.55, top: 0.14, len: 1.12 },
+  jacket:  { label: 'Blazer',  z: 2, tracker: 'pose', k: 1.72, top: 0.18, len: 1.25 },
+  scarf:   { label: 'Chalina', z: 3, tracker: 'pose', k: 0.95 },
+  glasses: { label: 'Lentes',  z: 4, tracker: 'face', k: 1.65 },
+  hat:     { label: 'Gorro',   z: 5, tracker: 'face', k: 1.18 }
+};
+
+const $ = s => document.querySelector(s);
+const video = $('#cam'), view = $('#view'), stage = $('#stage');
+const ctx = view.getContext('2d', { alpha: false });
+ctx.imageSmoothingQuality = 'high';
+const layer = document.createElement('canvas');
+const lg = layer.getContext('2d');
+
+/* ---------- utilidades geométricas ---------- */
+const sub = (a, b) => ({ x: a.x - b.x, y: a.y - b.y });
+const add = (a, b) => ({ x: a.x + b.x, y: a.y + b.y });
+const mul = (a, k) => ({ x: a.x * k, y: a.y * k });
+const len = a => Math.hypot(a.x, a.y);
+const norm = a => { const l = len(a) || 1; return { x: a.x / l, y: a.y / l }; };
+const mix = (a, b, t) => ({ x: a.x + (b.x - a.x) * t, y: a.y + (b.y - a.y) * t });
+const lerp = (a, b, t) => a + (b - a) * t;
+const clamp = (v, a, b) => Math.min(b, Math.max(a, v));
+
+/* ---------- filtro One Euro ---------- */
+class OneEuro {
+  constructor(minCut = 1.2, beta = 0.03, dCut = 1) {
+    this.minCut = minCut; this.beta = beta; this.dCut = dCut; this.reset();
+  }
+  reset() { this.x = null; this.dx = 0; this.prev = null; this.last = null; }
+  a(cut, dt) { const tau = 1 / (2 * Math.PI * cut); return 1 / (1 + tau / dt); }
+  f(v, t) {
+    if (this.last === null) { this.last = t; this.prev = v; this.x = v; this.dx = 0; return v; }
+    const dt = Math.max(1e-3, t - this.last);
+    this.last = t;
+    const d = (v - this.prev) / dt; this.prev = v;
+    this.dx += this.a(this.dCut, dt) * (d - this.dx);
+    const k = this.a(this.minCut + this.beta * Math.abs(this.dx), dt);
+    this.x += k * (v - this.x);
+    return this.x;
+  }
+}
+
+/* ---------- estado ---------- */
+let W = 0, H = 0, vw = 0, vh = 0;
+let running = false, stream = null, lastCT = -1, lastTs = 0, frameNo = 0, loopId = 0;
+const items = [];
+let uid = 0, editingId = null;
+
+const filters = {};            // key -> {x:OneEuro, y:OneEuro}
+const seen = { pose: -1e9, face: -1e9 };   // última detección (ms)
+const pts = { pose: null, face: null };    // últimos puntos suavizados (px del lienzo)
+const cost = { pose: 0, face: 0 }, errs = { pose: 0, face: 0 };
+
+/* ---------- mensajes ---------- */
+const statusEl = $('#status');
+let toastUntil = 0, toastText = '', toastTimer = 0;
+function toast(msg, ms = 4500) {
+  toastText = msg; toastUntil = performance.now() + ms; paintStatus(msg);
+  clearTimeout(toastTimer); toastTimer = setTimeout(clearToast, ms);
+}
+function clearToast() { clearTimeout(toastTimer); toastUntil = 0; toastText = ''; paintStatus(''); }
+let shown = '';
+function paintStatus(msg) {
+  if (msg === shown) return;
+  shown = msg;
+  if (msg) statusEl.textContent = msg;
+  statusEl.classList.toggle('on', !!msg);
+}
+
+/* =====================================================================
+   CARGA DE MODELOS (perezosa: solo se carga lo que se necesita)
+   ===================================================================== */
+let mpPromise = null, filesetPromise = null, mpAttempt = 0;
+const models = {};   // kind -> { inst, promise, failed }
+
+// Los navegadores recuerdan un import() fallido; por eso cada reintento usa una URL distinta.
+function getMP() { return mpPromise ??= import(`${MP_BASE}/vision_bundle.mjs${mpAttempt ? '?retry=' + mpAttempt : ''}`); }
+function getFileset() {
+  return filesetPromise ??= getMP().then(mp => mp.FilesetResolver.forVisionTasks(`${MP_BASE}/wasm`));
+}
+
+function ensureModel(kind) {
+  const cur = models[kind];
+  if (cur && !(cur.failed && performance.now() > cur.retryAt)) return cur.promise;   // cargando, listo, o en espera tras un fallo
+  const rec = models[kind] = { inst: null, failed: false, promise: null };
+  rec.promise = (async () => {
+    const [mp, fileset] = await Promise.all([getMP(), getFileset()]);
+    const Cls = kind === 'pose' ? mp.PoseLandmarker : mp.FaceLandmarker;
+    const extra = kind === 'pose' ? { numPoses: 1 } : { numFaces: 1 };
+    let lastErr;
+    for (const delegate of ['GPU', 'CPU']) {
+      try {
+        return await Cls.createFromOptions(fileset, {
+          baseOptions: { modelAssetPath: MODELS[kind], delegate },
+          runningMode: 'VIDEO', ...extra
+        });
+      } catch (e) { lastErr = e; console.warn(`${kind}: delegate ${delegate} falló`, e); }
+    }
+    throw lastErr;
+  })().then(inst => { rec.inst = inst; return inst; })
+      .catch(e => {
+        console.error(e);
+        mpPromise = filesetPromise = null; mpAttempt++;   // permite reintentar la importación
+        models[kind] = { inst: null, failed: true, retryAt: performance.now() + 8000, promise: Promise.resolve() };
+        toast('No se pudo cargar el modelo de seguimiento. Revisa tu conexión.', 8000);
+      });
+  return rec.promise;
+}
+
+/* =====================================================================
+   CÁMARA
+   ===================================================================== */
+const btnStart = $('#btnStart'), splash = $('#splash');
+
+async function startCamera() {
+  if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) {
+    toast('La cámara requiere una página segura (https://). GitHub Pages ya lo es.', 9000); return;
+  }
+  btnStart.disabled = true; btnStart.textContent = 'Solicitando cámara…';
+  try {
+    stream?.getTracks().forEach(t => t.stop());
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'user', ...(innerHeight > innerWidth ? { width: { ideal: 720 }, height: { ideal: 1280 } } : { width: { ideal: 1280 }, height: { ideal: 720 } }), frameRate: { ideal: 30 } },
+      audio: false
+    });
+  } catch (e) {
+    const m = {
+      NotAllowedError: 'Permiso de cámara denegado. Actívalo en el candado de la barra de direcciones.',
+      SecurityError: 'Permiso de cámara denegado. Actívalo en el candado de la barra de direcciones.',
+      NotFoundError: 'No se encontró ninguna cámara.',
+      NotReadableError: 'La cámara está siendo usada por otra aplicación.',
+      OverconstrainedError: 'La cámara no admite la resolución pedida.'
+    }[e.name] || 'No se pudo iniciar la cámara.';
+    toast(m, 9000);
+    btnStart.disabled = false; btnStart.textContent = 'Reintentar';
+    return;
+  }
+  video.srcObject = stream;
+  try { await video.play(); } catch (e) { /* autoplay ya activo */ }
+  if (!video.videoWidth) await new Promise(r => video.addEventListener('loadedmetadata', r, { once: true }));
+
+  stream.getVideoTracks()[0].addEventListener('ended', () => {
+    running = false; view.style.display = 'none'; splash.hidden = false;
+    btnStart.disabled = false; btnStart.textContent = 'Reactivar cámara'; refreshButtons();
+    toast('Se perdió la conexión con la cámara.', 6000);
+  });
+
+  setSize();
+  splash.hidden = true; view.style.display = 'block';
+  running = true; lastCT = -1; loopId++;
+  for (const k of neededTrackers()) ensureModel(k);
+  refreshButtons();
+  schedule();
+}
+
+function setSize() {
+  vw = video.videoWidth; vh = video.videoHeight;
+  const s = Math.min(1, MAX_STAGE_W / vw);
+  W = Math.round(vw * s); H = Math.round(vh * s);
+  view.width = W; view.height = H;
+  if (GL) { GL.canvas.width = W; GL.canvas.height = H; GL.gl.viewport(0, 0, W, H); GL.gl.uniform2f(GL.uRes, W, H); }
+  for (const k in filters) delete filters[k];
+  pts.pose = pts.face = null;
+}
+
+function schedule() {
+  const id = loopId, cb = () => tick(id);
+  if (video.requestVideoFrameCallback) video.requestVideoFrameCallback(cb);
+  else requestAnimationFrame(cb);
+}
+function tick(id) {
+  if (!running || id !== loopId) return;
+  if (video.readyState >= 2) {
+    if (video.requestVideoFrameCallback || video.currentTime !== lastCT) {
+      lastCT = video.currentTime;
+      if (video.videoWidth !== vw || video.videoHeight !== vh) setSize();
+      frame(performance.now());
+    }
+  }
+  schedule();
+}
+
+/* =====================================================================
+   SEGUIMIENTO
+   ===================================================================== */
+function activeItems() { return items.filter(i => i.on); }
+function neededTrackers() {
+  const s = new Set();
+  for (const i of items) if (i.on) s.add(CATS[i.cat].tracker);
+  return s;
+}
+
+function sm(key, lm, t) {
+  let f = filters[key];
+  if (!f) f = filters[key] = { x: new OneEuro(), y: new OneEuro() };
+  return { x: f.x.f((1 - lm.x) * W, t), y: f.y.f(lm.y * H, t) };   // x espejada
+}
+function resetGroup(prefix) {
+  for (const k in filters) if (k.startsWith(prefix)) delete filters[k];
+}
+
+function updatePose(res, now) {
+  const lm = res?.landmarks?.[0];
+  if (!lm) return;
+  const vis = Math.min(lm[11].visibility ?? 1, lm[12].visibility ?? 1);
+  if (vis < 0.4) return;
+  if (now - seen.pose > 500) resetGroup('p');
+  const t = now / 1000;
+  const hv = Math.min(lm[23].visibility ?? 0, lm[24].visibility ?? 0);
+  const hipsOK = hv > 0.55 && lm[23].y < 1.02 && lm[24].y < 1.02;
+  const p = {
+    ls: sm('p11', lm[11], t), rs: sm('p12', lm[12], t),
+    mouth: mix(sm('p9', lm[9], t), sm('p10', lm[10], t), 0.5), hipsOK
+  };
+  if (hipsOK) p.hips = mix(sm('p23', lm[23], t), sm('p24', lm[24], t), 0.5);
+  pts.pose = p; seen.pose = now;
+}
+
+function updateFace(res, now) {
+  const lm = res?.faceLandmarks?.[0];
+  if (!lm) return;
+  if (now - seen.face > 500) resetGroup('f');
+  const t = now / 1000;
+  pts.face = {
+    top: sm('f10', lm[10], t), chin: sm('f152', lm[152], t),
+    sideA: sm('f234', lm[234], t), sideB: sm('f454', lm[454], t),
+    nose: sm('f1', lm[1], t), eyeA: sm('f33', lm[33], t), eyeB: sm('f263', lm[263], t)
+  };
+  seen.face = now;
+}
+
+function detect(now) {
+  const need = neededTrackers();
+  const both = need.has('pose') && need.has('face');
+  const alt = both && (cost.pose + cost.face) > 32;   // si va lento, alterna detectores por fotograma
+  const ts = Math.max(now, lastTs + 1); lastTs = ts;
+  frameNo++;
+  for (const kind of ['pose', 'face']) {
+    if (!need.has(kind)) continue;
+    const m = models[kind]?.inst;
+    if (!m) { ensureModel(kind); continue; }
+    if (alt && (frameNo & 1) !== (kind === 'pose' ? 0 : 1)) continue;
+    const t0 = performance.now();
+    try {
+      const r = m.detectForVideo(video, ts);
+      kind === 'pose' ? updatePose(r, now) : updateFace(r, now);
+    } catch (e) {
+      console.error(`${kind}: error de detección`, e);
+      m.close?.();
+      if (++errs[kind] > 3) {                      // demasiados fallos: se desiste de este detector
+        models[kind] = { inst: null, failed: true, promise: Promise.resolve() };
+        toast('El seguimiento falló en este dispositivo.', 9000);
+      } else delete models[kind];                  // se recreará en el siguiente fotograma
+    }
+    cost[kind] = lerp(cost[kind], performance.now() - t0, 0.1);
+  }
+}
+
+/* =====================================================================
+   GEOMETRÍA DE CADA PRENDA
+   Devuelve las 4 esquinas (TL, TR, BL, BR) en píxeles del lienzo.
+   ===================================================================== */
+function fadeFor(kind, now) {
+  const age = now - seen[kind];
+  return age < 120 ? 1 : Math.max(0, 1 - (age - 120) / 280);
+}
+
+function quadFor(it, now) {
+  const c = CATS[it.cat], aspect = it.cut.height / it.cut.width;
+
+  if (c.tracker === 'pose') {
+    const p = pts.pose, fade = fadeFor('pose', now);
+    if (!p || fade <= 0) return null;
+    const sw = len(sub(p.rs, p.ls));
+    if (sw < 24) return null;
+    const u = norm(sub(p.rs, p.ls)), v = { x: -u.y, y: u.x };
+    const mid = mix(p.ls, p.rs, 0.5);
+
+    if (it.cat === 'scarf') {
+      const gw = sw * c.k * it.scale, gh = gw * aspect;
+      const neck = mix(mid, p.mouth, 0.3);
+      const ctr = add(add(neck, mul(u, it.dx * gw)), mul(v, it.dy * gw + gh * 0.12));
+      const TL = add(sub(ctr, mul(u, gw / 2)), mul(v, -gh / 2));
+      return { TL, TR: add(TL, mul(u, gw)), BL: add(TL, mul(v, gh)), BR: add(add(TL, mul(u, gw)), mul(v, gh)), fade };
+    }
+    const gw = sw * c.k * it.scale;
+    let gh = gw * aspect;
+    if (p.hipsOK) {
+      const torso = Math.max(0, (p.hips.x - mid.x) * v.x + (p.hips.y - mid.y) * v.y);
+      const target = torso * c.len * it.scale + c.top * sw;
+      gh = clamp(lerp(gh, target, 0.6), gh * 0.65, gh * 1.5);
+    }
+    const topC = add(add(sub(mid, mul(v, c.top * sw)), mul(u, it.dx * gw)), mul(v, it.dy * gw));
+    const TL = sub(topC, mul(u, gw / 2)), TR = add(topC, mul(u, gw / 2));
+    return { TL, TR, BL: add(TL, mul(v, gh)), BR: add(TR, mul(v, gh)), fade };
+  }
+
+  /* --- cara --- */
+  const f = pts.face, fade = fadeFor('face', now);
+  if (!f || fade <= 0) return null;
+
+  // Giro de la cabeza: posición de la nariz entre los bordes de la cara (en coordenadas del lienzo)
+  let Lx = f.sideA, Rx = f.sideB; if (Lx.x > Rx.x) [Lx, Rx] = [Rx, Lx];
+  const dl = f.nose.x - Lx.x, dr = Rx.x - f.nose.x;
+  const s = clamp((dl - dr) / Math.max(1, dl + dr), -0.85, 0.85);   // >0: gira hacia la derecha de la pantalla
+
+  if (it.cat === 'glasses') {
+    let A = f.eyeA, B = f.eyeB; if (A.x > B.x) [A, B] = [B, A];
+    const d = len(sub(B, A)); if (d < 8) return null;
+    const u = norm(sub(B, A)), v = { x: -u.y, y: u.x };
+    const gw = d * c.k * it.scale, gh = gw * aspect;
+    const hL = gh * (1 + 0.28 * s), hR = gh * (1 - 0.28 * s);
+    const ctr = add(add(mix(A, B, 0.5), mul(u, it.dx * gw)), mul(v, gw * 0.03 + it.dy * gw));
+    const L = sub(ctr, mul(u, gw / 2)), R = add(ctr, mul(u, gw / 2));
+    return {
+      TL: sub(L, mul(v, hL / 2)), TR: sub(R, mul(v, hR / 2)),
+      BL: add(L, mul(v, hL / 2)), BR: add(R, mul(v, hR / 2)),
+      fade: fade * clamp(1.6 - Math.abs(s) * 1.4, 0.35, 1)
+    };
+  }
+
+  // gorro
+  const upv = sub(f.top, f.chin), faceH = len(upv); if (faceH < 20) return null;
+  const up = norm(upv), u = { x: -up.y, y: up.x };
+  const fw = len(sub(f.sideB, f.sideA));
+  const gw = fw * c.k * it.scale, gh = gw * aspect;
+  const hL = gh * (1 + 0.18 * s), hR = gh * (1 - 0.18 * s);
+  const base = add(add(add(f.top, mul(up, -faceH * 0.12)), mul(u, it.dx * gw)), mul(up, -it.dy * gw));
+  const BL = sub(base, mul(u, gw / 2)), BR = add(base, mul(u, gw / 2));
+  return { TL: add(BL, mul(up, hL)), TR: add(BR, mul(up, hR)), BL, BR, fade };
+}
+
+/* =====================================================================
+   DIBUJO
+   ===================================================================== */
+/* ---------- Renderizado con WebGL2 (perspectiva correcta, filtrado con mipmaps) ---------- */
+let GL = null, glFailed = false;
+
+function initGL() {
+  try {
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const gl = c.getContext('webgl2', { alpha: true, premultipliedAlpha: true, antialias: true, depth: false, stencil: false, preserveDrawingBuffer: false });
+    if (!gl) return null;
+    const sh = (type, src) => {
+      const o = gl.createShader(type); gl.shaderSource(o, src); gl.compileShader(o);
+      if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(o));
+      return o;
+    };
+    const prog = gl.createProgram();
+    gl.attachShader(prog, sh(gl.VERTEX_SHADER, `#version 300 es
+      in vec2 aPos; in vec3 aTex; uniform vec2 uRes; out vec3 vTex;
+      void main(){ vec2 p = aPos / uRes; gl_Position = vec4(p.x * 2.0 - 1.0, 1.0 - p.y * 2.0, 0.0, 1.0); vTex = aTex; }`));
+    gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, `#version 300 es
+      precision highp float; uniform sampler2D uTex; in vec3 vTex; out vec4 o;
+      void main(){ o = texture(uTex, vTex.xy / vTex.z); }`));
+    gl.linkProgram(prog);
+    if (!gl.getProgramParameter(prog, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(prog));
+    gl.useProgram(prog);
+    const buf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, buf);
+    const aPos = gl.getAttribLocation(prog, 'aPos'), aTex = gl.getAttribLocation(prog, 'aTex');
+    gl.enableVertexAttribArray(aPos); gl.vertexAttribPointer(aPos, 2, gl.FLOAT, false, 20, 0);
+    gl.enableVertexAttribArray(aTex); gl.vertexAttribPointer(aTex, 3, gl.FLOAT, false, 20, 8);
+    gl.uniform1i(gl.getUniformLocation(prog, 'uTex'), 0);
+    gl.viewport(0, 0, W, H); gl.uniform2f(gl.getUniformLocation(prog, 'uRes'), W, H);
+    gl.enable(gl.BLEND); gl.blendFunc(gl.ONE, gl.ONE_MINUS_SRC_ALPHA);   // alfa premultiplicado
+    gl.enable(gl.SCISSOR_TEST); gl.clearColor(0, 0, 0, 0);
+    c.addEventListener('webglcontextlost', e => {
+      e.preventDefault(); GL = null; glFailed = true;
+      for (const it of items) it.tex = null;
+    });
+    return { gl, canvas: c, uRes: gl.getUniformLocation(prog, 'uRes'), data: new Float32Array(20), aniso: gl.getExtension('EXT_texture_filter_anisotropic') };
+  } catch (e) { console.warn('WebGL2 no disponible, se usa Canvas 2D', e); return null; }
+}
+
+function makeTex(c) {
+  const { gl, aniso } = GL, t = gl.createTexture();
+  gl.bindTexture(gl.TEXTURE_2D, t);
+  gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, true);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, c);
+  gl.generateMipmap(gl.TEXTURE_2D);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  if (aniso) gl.texParameterf(gl.TEXTURE_2D, aniso.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(4, gl.getParameter(aniso.MAX_TEXTURE_MAX_ANISOTROPY_EXT)));
+  return t;
+}
+function freeTex(it) { if (it.tex && GL) GL.gl.deleteTexture(it.tex); it.tex = null; }
+
+// Dibuja la prenda en el lienzo WebGL (solo dentro del rectángulo bx,by,bw,bh). Mapeo proyectivo exacto.
+function glDraw(it, q, bx, by, bw, bh) {
+  const { gl, data } = GL;
+  if (!it.tex) it.tex = makeTex(it.cut);
+  gl.scissor(bx, H - by - bh, bw, bh); gl.clear(gl.COLOR_BUFFER_BIT);
+  const hL = Math.max(1, Math.hypot(q.BL.x - q.TL.x, q.BL.y - q.TL.y));
+  const hR = Math.max(1, Math.hypot(q.BR.x - q.TR.x, q.BR.y - q.TR.y));
+  data.set([q.TL.x, q.TL.y, 0, 0, hL,   q.TR.x, q.TR.y, hR, 0, hR,
+            q.BL.x, q.BL.y, 0, hL, hL,  q.BR.x, q.BR.y, hR, hR, hR]);
+  gl.bindTexture(gl.TEXTURE_2D, it.tex);
+  gl.bufferData(gl.ARRAY_BUFFER, data, gl.DYNAMIC_DRAW);
+  gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+}
+
+/* ---------- Respaldo con Canvas 2D (si no hay WebGL2): tiras verticales con solape ---------- */
+function drawQuad2D(g, img, q) {
+  const { TL, TR, BL, BR } = q;
+  const iw = img.width, ih = img.height;
+  const para = Math.abs(TL.x + BR.x - TR.x - BL.x) < 0.6 && Math.abs(TL.y + BR.y - TR.y - BL.y) < 0.6;
+  const n = para ? 1 : 12, sw = iw / n;
+  for (let i = 0; i < n; i++) {
+    const u0 = i / n, u1 = (i + 1) / n;
+    const t0 = mix(TL, TR, u0), t1 = mix(TL, TR, u1), b0 = mix(BL, BR, u0);
+    const sx = i * sw, w = Math.min(sw + (n > 1 ? 1 : 0), iw - sx);
+    g.setTransform((t1.x - t0.x) / sw, (t1.y - t0.y) / sw, (b0.x - t0.x) / ih, (b0.y - t0.y) / ih, t0.x, t0.y);
+    g.drawImage(img, sx, 0, w, ih, 0, 0, w, ih);
+  }
+  g.setTransform(1, 0, 0, 1, 0, 0);
+}
+function pickMip(it, targetW) {
+  it.mips ??= buildMips(it.cut);
+  let best = it.mips[0];
+  for (const m of it.mips) if (m.width >= targetW) best = m; else break;
+  return best;
+}
+
+const isPara = q => Math.abs(q.TL.x + q.BR.x - q.TR.x - q.BL.x) < 0.6 && Math.abs(q.TL.y + q.BR.y - q.TR.y - q.BL.y) < 0.6;
+
+function render(now) {
+  ctx.setTransform(-1, 0, 0, 1, W, 0);
+  ctx.drawImage(video, 0, 0, W, H);
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+
+  const act = activeItems().sort((a, b) => CATS[a.cat].z - CATS[b.cat].z || a.id - b.id);
+  if (!act.length) return;
+  const sc = W / 1280, pad = Math.ceil(26 * sc);
+
+  for (const it of act) {
+    const q = quadFor(it, now);
+    if (!q) continue;
+    const { TL, TR, BL, BR } = q;
+    if (![TL.x, TL.y, TR.x, TR.y, BL.x, BL.y, BR.x, BR.y].every(isFinite)) continue;
+
+    ctx.save();
+    ctx.globalAlpha = q.fade;
+    ctx.shadowColor = 'rgba(0,0,0,.28)';          // sombra suave: da sensación de volumen
+    ctx.shadowBlur = 12 * sc; ctx.shadowOffsetY = 3 * sc;
+
+    if (isPara(q)) {
+      // Caso habitual (torso, chalina, cabeza de frente): una sola transformación afín, sin capas intermedias
+      const img = pickMip(it, Math.hypot(TR.x - TL.x, TR.y - TL.y));
+      ctx.setTransform((TR.x - TL.x) / img.width, (TR.y - TL.y) / img.width, (BL.x - TL.x) / img.height, (BL.y - TL.y) / img.height, TL.x, TL.y);
+      ctx.drawImage(img, 0, 0);
+    } else {
+      // Cabeza girada: hace falta perspectiva (un lado más pequeño que el otro)
+      const xs = [TL.x, TR.x, BL.x, BR.x], ys = [TL.y, TR.y, BL.y, BR.y];
+      const bx = Math.max(0, Math.floor(Math.min(...xs) - pad)), by = Math.max(0, Math.floor(Math.min(...ys) - pad));
+      const bw = Math.min(W, Math.ceil(Math.max(...xs) + pad)) - bx, bh = Math.min(H, Math.ceil(Math.max(...ys) + pad)) - by;
+      if (bw > 2 && bh > 2) {
+        if (!GL && !glFailed) { GL = initGL(); if (!GL) glFailed = true; }
+        if (GL) {
+          document.documentElement.dataset.render = 'webgl2';
+          glDraw(it, q, bx, by, bw, bh);
+          ctx.drawImage(GL.canvas, bx, by, bw, bh, bx, by, bw, bh);
+        } else {
+          if (layer.width !== W || layer.height !== H) { layer.width = W; layer.height = H; }
+          lg.clearRect(bx, by, bw, bh);
+          drawQuad2D(lg, pickMip(it, Math.hypot(TR.x - TL.x, TR.y - TL.y)), q);
+          ctx.drawImage(layer, bx, by, bw, bh, bx, by, bw, bh);
+        }
+      }
+    }
+    ctx.restore();
+  }
+}
+
+const DEBUG = new URLSearchParams(location.search).has('debug');   // añade ?debug a la URL para ver tiempos
+let dbgAvg = 0;
+function frame(now) {
+  const t0 = performance.now();
+  detect(now);
+  const t1 = performance.now();
+  render(now);
+  updateHint(now);
+  if (DEBUG) {
+    dbgAvg = lerp(dbgAvg, performance.now() - t0, 0.05);
+    window.__dbg = { detect: +(t1 - t0).toFixed(1), render: +(performance.now() - t1).toFixed(1), avg: +dbgAvg.toFixed(1), mode: document.documentElement.dataset.render || 'canvas2d' };
+    paintStatus(`detección ${window.__dbg.detect} ms · dibujo ${window.__dbg.render} ms · ${window.__dbg.mode}`);
+  }
+}
+
+function updateHint(now) {
+  if (now < toastUntil) { paintStatus(toastText); return; }
+  const need = neededTrackers();
+  let msg = '';
+  for (const k of need) if (!models[k]?.inst) {
+    const f = models[k]?.failed;
+    msg = !f ? 'Cargando seguimiento…' : Number.isFinite(models[k].retryAt) ? 'Sin seguimiento: revisa tu conexión. Reintentando…' : 'El seguimiento no funciona en este dispositivo.';
+    break;
+  }
+  if (!msg && need.has('pose') && now - seen.pose > 1200) msg = 'Colócate de frente y aléjate para que se vean tus hombros';
+  if (!msg && need.has('face') && now - seen.face > 1200) msg = 'Muestra tu rostro a la cámara';
+  paintStatus(msg);
+}
+
+/* =====================================================================
+   PROCESAMIENTO DE PRENDAS (quitar fondo liso, recortar, mipmaps)
+   ===================================================================== */
+function fitCanvas(src, max) {
+  const w = src.naturalWidth || src.width || 512, h = src.naturalHeight || src.height || 512;
+  const s = Math.min(1, max / Math.max(w, h));
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(w * s)); c.height = Math.max(1, Math.round(h * s));
+  const g = c.getContext('2d', { willReadFrequently: true });
+  g.imageSmoothingQuality = 'high';
+  g.drawImage(src, 0, 0, c.width, c.height);
+  return c;
+}
+
+// Devuelve un canvas nuevo con el fondo liso eliminado (si lo hay) y recortado al contenido.
+function cutOut(srcCanvas, globalKey) {
+  const w = srcCanvas.width, h = srcCanvas.height, N = w * h;
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d', { willReadFrequently: true });
+  g.drawImage(srcCanvas, 0, 0);
+  const im = g.getImageData(0, 0, w, h), d = im.data;
+  let mode = 'alpha';
+
+  let tr = 0; for (let i = 3; i < d.length; i += 4) if (d[i] < 250) tr++;
+  if (tr / N <= 0.02) {                        // sin transparencia: intentamos quitar fondo liso
+    const bs = [], step = Math.max(1, Math.floor(Math.max(w, h) / 120));
+    const push = (x, y) => { const i = (y * w + x) * 4; bs.push([d[i], d[i + 1], d[i + 2]]); };
+    for (let x = 0; x < w; x += step) { push(x, 0); push(x, h - 1); }
+    for (let y = 0; y < h; y += step) { push(0, y); push(w - 1, y); }
+    const med = ch => { const a = bs.map(p => p[ch]).sort((x, y) => x - y); return a[a.length >> 1]; };
+    const bg = [med(0), med(1), med(2)], TOL2 = 44 * 44;
+    const nearPx = (r, gg, b) => { const dr = r - bg[0], dg = gg - bg[1], db = b - bg[2]; return dr * dr + dg * dg + db * db <= TOL2; };
+    let ok = 0; for (const p of bs) if (nearPx(p[0], p[1], p[2])) ok++;
+
+    if (ok / bs.length < 0.7) mode = 'busy';
+    else {
+      const bgMask = new Uint8Array(N);
+      let count = 0;
+      if (globalKey) {                         // lentes: también se elimina el fondo dentro de los cristales
+        for (let p = 0; p < N; p++) { const i = p * 4; if (nearPx(d[i], d[i + 1], d[i + 2])) { bgMask[p] = 1; count++; } }
+      } else {                                 // resto: inundación desde los bordes
+        const q = new Int32Array(N); let qh = 0, qt = 0;
+        const tryPush = p => { if (!bgMask[p]) { const i = p * 4; if (nearPx(d[i], d[i + 1], d[i + 2])) { bgMask[p] = 1; q[qt++] = p; } } };
+        for (let x = 0; x < w; x++) { tryPush(x); tryPush((h - 1) * w + x); }
+        for (let y = 0; y < h; y++) { tryPush(y * w); tryPush(y * w + w - 1); }
+        while (qh < qt) {
+          const p = q[qh++], x = p % w, y = (p - x) / w;
+          if (x > 0) tryPush(p - 1); if (x < w - 1) tryPush(p + 1);
+          if (y > 0) tryPush(p - w); if (y < h - 1) tryPush(p + w);
+        }
+        count = qt;
+      }
+      const frac = count / N;
+      if (frac < 0.04 || frac > 0.94) mode = 'busy';
+      else {
+        mode = 'flat';
+        for (let p = 0; p < N; p++) {
+          const i = p * 4 + 3;
+          if (bgMask[p]) { d[i] = 0; continue; }
+          const x = p % w, y = (p - x) / w;     // borde: semitransparente para evitar halo
+          if ((x > 0 && bgMask[p - 1]) || (x < w - 1 && bgMask[p + 1]) || (y > 0 && bgMask[p - w]) || (y < h - 1 && bgMask[p + w])) d[i] = Math.min(d[i], 150);
+        }
+        g.putImageData(im, 0, 0);
+      }
+    }
+  }
+
+  // recorte al contenido
+  let x0 = w, y0 = h, x1 = -1, y1 = -1;
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (d[(y * w + x) * 4 + 3] > 16) {
+    if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+  }
+  if (x1 < 0) { x0 = 0; y0 = 0; x1 = w - 1; y1 = h - 1; }
+  x0 = Math.max(0, x0 - 2); y0 = Math.max(0, y0 - 2); x1 = Math.min(w - 1, x1 + 2); y1 = Math.min(h - 1, y1 + 2);
+  const out = document.createElement('canvas'); out.width = x1 - x0 + 1; out.height = y1 - y0 + 1;
+  out.getContext('2d').drawImage(c, x0, y0, out.width, out.height, 0, 0, out.width, out.height);
+  return { canvas: out, mode };
+}
+
+function buildMips(c) {
+  const levels = [c];
+  while (levels[levels.length - 1].width > 96) {
+    const p = levels[levels.length - 1], n = document.createElement('canvas');
+    n.width = Math.max(1, p.width >> 1); n.height = Math.max(1, p.height >> 1);
+    const g = n.getContext('2d'); g.imageSmoothingQuality = 'high';
+    g.drawImage(p, 0, 0, n.width, n.height);
+    levels.push(n);
+  }
+  return levels;   // de mayor a menor
+}
+
+function makeThumb(c) {
+  const s = 96 / Math.max(c.width, c.height), t = document.createElement('canvas');
+  t.width = Math.max(1, Math.round(c.width * s)); t.height = Math.max(1, Math.round(c.height * s));
+  const g = t.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(c, 0, 0, t.width, t.height);
+  return t.toDataURL('image/png');
+}
+
+function processItem(it) {
+  const r = cutOut(it.src, it.cat === 'glasses');
+  freeTex(it);
+  it.cut = r.canvas; it.mips = null; it.busy = r.mode === 'busy';
+  it.thumb = makeThumb(r.canvas);
+}
+
+const KEYWORDS = [
+  ['glasses', /(^|[^a-z])(glass(es)?|gafas?|lentes?|sunglass(es)?|anteojos?|eyewear|occhiali)([^a-z]|$)/],
+  ['hat',     /(^|[^a-z])(hat|cap|beanie|gorr[oa]s?|sombrero|bonnet|boina|visera|chullo)([^a-z]|$)/],
+  ['scarf',   /(^|[^a-z])(scarf|chalina|bufanda|foulard|muffler)([^a-z]|$)/],
+  ['jacket',  /(^|[^a-z])(blazer|jacket|chaqueta|saco|abrigo|coat|americana|cardigan|hoodie|campera|chamarra)([^a-z]|$)/],
+  ['top',     /(^|[^a-z])(shirt|camisa|polo|tee|t-shirt|camiseta|polera|blusa|sweater|sueter|top)([^a-z]|$)/]
+];
+function guessCat(name) {
+  const n = (name || '').toLowerCase();
+  for (const [c, re] of KEYWORDS) if (re.test(n)) return c;
+  return null;
+}
+
+/* =====================================================================
+   ENTRADA DE PRENDAS: archivo, enlace, arrastrar, pegar
+   ===================================================================== */
+function blobToImage(blob) {
+  return new Promise((res, rej) => {
+    const url = URL.createObjectURL(blob), img = new Image();
+    img.onload = () => { URL.revokeObjectURL(url); res(img); };
+    img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('decode')); };
+    img.src = url;
+  });
+}
+
+async function fetchImageBlob(url) {
+  const get = async u => {
+    const ac = new AbortController(), to = setTimeout(() => ac.abort(), 15000);
+    try {
+      const r = await fetch(u, { mode: 'cors', referrerPolicy: 'no-referrer', signal: ac.signal });
+      if (!r.ok) throw new Error('http ' + r.status);
+      return await r.blob();
+    } finally { clearTimeout(to); }
+  };
+  let blob;
+  try { blob = await get(url); }
+  catch (e) {
+    if (/^(data|blob):/i.test(url)) throw e;
+    blob = await get(IMG_PROXY(url));                // el sitio no permite CORS: se reintenta vía proxy de imágenes
+  }
+  if (!blob.type.startsWith('image/')) throw new Error('not-image');
+  return blob;
+}
+
+async function addImage(blob, name) {
+  const img = await blobToImage(blob);
+  const it = { id: ++uid, name: (name || 'Prenda').replace(/\.[a-z0-9]+$/i, '').slice(0, 60) || 'Prenda',
+               src: fitCanvas(img, MAX_GARMENT), cat: null, on: true, scale: 1, dx: 0, dy: 0, busy: false };
+  it.cat = guessCat(name) || guessCat(it.name);
+  const hadKeyword = !!it.cat;
+  if (!it.cat) it.cat = 'top';
+  processItem(it);
+  if (!hadKeyword) {                                 // sin pista en el nombre: se sugiere por proporción
+    const ar = it.cut.width / it.cut.height;
+    if (ar > 2.0) { it.cat = 'glasses'; processItem(it); }
+  }
+  items.push(it);
+  buildItems(); edit(it.id);
+  for (const k of neededTrackers()) ensureModel(k);
+  if (it.busy) toast('El fondo no es uniforme. Prueba «Quitar fondo (IA)» en los ajustes.', 7000);
+  return it;
+}
+
+async function addFiles(files) {
+  const list = [...files].filter(f => f.type.startsWith('image/'));
+  if (!list.length) { toast('Ese archivo no es una imagen.'); return; }
+  for (const f of list) {
+    try { await addImage(f, f.name); }
+    catch (e) { console.error(e); toast(`No se pudo leer «${f.name}».`); }
+  }
+}
+
+async function addURL(url) {
+  url = url.trim();
+  if (!/^(https?:|data:image|blob:)/i.test(url)) { toast('Pega un enlace que empiece con http:// o https://'); return false; }
+  toast('Descargando imagen…', 15000);
+  try {
+    const blob = await fetchImageBlob(url);
+    const name = decodeURIComponent((url.split(/[?#]/)[0].split('/').pop() || '')) || url;
+    clearToast();
+    await addImage(blob, name);
+    return true;
+  } catch (e) {
+    console.error(e);
+    toast(e.message === 'not-image'
+      ? 'Ese enlace no es una imagen directa. Clic derecho en la imagen → «Copiar dirección de imagen».'
+      : 'No se pudo descargar esa imagen. Descárgala y súbela como archivo.', 8000);
+    return false;
+  }
+}
+
+/* =====================================================================
+   INTERFAZ
+   ===================================================================== */
+const itemsEl = $('#items'), panel = $('#panel'), addbox = $('#addbox');
+const btnPlus = document.createElement('button');
+btnPlus.className = 'it plus'; btnPlus.type = 'button'; btnPlus.textContent = '+';
+btnPlus.setAttribute('aria-label', 'Añadir prenda'); btnPlus.setAttribute('aria-expanded', 'false');
+
+function buildItems() {
+  itemsEl.replaceChildren();
+  for (const it of items) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'it'; b.dataset.id = it.id; b.title = `${it.name} · ${CATS[it.cat].label}`;
+    b.setAttribute('aria-pressed', String(it.on));
+    b.setAttribute('aria-label', `${it.name}, ${CATS[it.cat].label}`);
+    const im = document.createElement('img'); im.alt = ''; im.src = it.thumb; b.append(im);
+    itemsEl.append(b);
+  }
+  itemsEl.append(btnPlus);
+  refreshButtons();
+}
+function refreshButtons() {
+  for (const b of itemsEl.querySelectorAll('.it[data-id]')) {
+    const it = items.find(i => i.id === +b.dataset.id);
+    if (it) b.setAttribute('aria-pressed', String(it.on));
+  }
+  $('#btnClear').disabled = !items.some(i => i.on);
+  $('#btnShot').disabled = !running;
+}
+
+itemsEl.addEventListener('click', e => {
+  const b = e.target.closest('.it[data-id]'); if (!b) return;
+  const it = items.find(i => i.id === +b.dataset.id); if (!it) return;
+  it.on = !it.on;
+  if (it.on) for (const k of neededTrackers()) ensureModel(k);
+  edit(it.id); refreshButtons();
+});
+
+function setAddOpen(open) {
+  addbox.hidden = !open; btnPlus.setAttribute('aria-expanded', String(open));
+  if (open) { panel.hidden = true; editingId = null; $('#urlIn').focus({ preventScroll: true }); }
+}
+btnPlus.addEventListener('click', () => setAddOpen(addbox.hidden));
+
+/* panel de ajustes */
+function edit(id) {
+  editingId = id;
+  const it = items.find(i => i.id === id);
+  if (!it) { panel.hidden = true; return; }
+  panel.hidden = false; addbox.hidden = true; btnPlus.setAttribute('aria-expanded', 'false');
+  $('#pname').textContent = it.name;
+  $('#sScale').value = it.scale; $('#sX').value = it.dx; $('#sY').value = it.dy;
+  $('#pnote').hidden = !it.busy;
+  const chips = $('#chips'); chips.replaceChildren();
+  for (const [k, c] of Object.entries(CATS)) {
+    const b = document.createElement('button');
+    b.type = 'button'; b.className = 'chip'; b.textContent = c.label; b.dataset.cat = k;
+    b.setAttribute('role', 'radio'); b.setAttribute('aria-checked', String(k === it.cat));
+    chips.append(b);
+  }
+}
+const cur = () => items.find(i => i.id === editingId);
+
+$('#chips').addEventListener('click', e => {
+  const b = e.target.closest('.chip'); const it = cur(); if (!b || !it || b.dataset.cat === it.cat) return;
+  it.cat = b.dataset.cat; processItem(it);
+  buildItems(); edit(it.id);
+  if (it.on) for (const k of neededTrackers()) ensureModel(k);
+});
+$('#sScale').addEventListener('input', e => { const it = cur(); if (it) it.scale = +e.target.value; });
+$('#sX').addEventListener('input', e => { const it = cur(); if (it) it.dx = +e.target.value; });
+$('#sY').addEventListener('input', e => { const it = cur(); if (it) it.dy = +e.target.value; });
+$('#pclose').addEventListener('click', () => { panel.hidden = true; editingId = null; });
+$('#pdel').addEventListener('click', () => {
+  const i = items.findIndex(x => x.id === editingId); if (i < 0) return;
+  freeTex(items[i]); items.splice(i, 1); panel.hidden = true; editingId = null; buildItems();
+});
+$('#pai').addEventListener('click', async e => {
+  const it = cur(); if (!it) return;
+  const btn = e.currentTarget, label = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Procesando… (primera vez: descarga ~40 MB)';
+  try {
+    const mod = await import(BGREMOVAL_URL);
+    const blob = await new Promise(r => it.src.toBlob(r, 'image/png'));
+    const out = await mod.removeBackground(blob);
+    it.src = fitCanvas(await blobToImage(out), MAX_GARMENT);
+    processItem(it); buildItems(); edit(it.id);
+  } catch (err) {
+    console.error(err);
+    toast('No se pudo quitar el fondo con IA. Prueba con una imagen de fondo liso o PNG transparente.', 8000);
+  } finally { btn.disabled = false; btn.textContent = label; }
+});
+
+/* añadir */
+$('#btnFile').addEventListener('click', () => $('#fileIn').click());
+$('#fileIn').addEventListener('change', e => { addFiles(e.target.files); e.target.value = ''; });
+$('#urlForm').addEventListener('submit', async e => {
+  e.preventDefault();
+  const inp = $('#urlIn'); if (!inp.value.trim()) return;
+  if (await addURL(inp.value)) inp.value = '';
+});
+
+/* arrastrar y soltar (archivos, o imágenes arrastradas desde otra web) */
+let dragDepth = 0;
+addEventListener('dragenter', e => { if (e.dataTransfer?.types?.length) { dragDepth++; stage.classList.add('drag'); } });
+addEventListener('dragleave', () => { if (--dragDepth <= 0) { dragDepth = 0; stage.classList.remove('drag'); } });
+addEventListener('dragover', e => e.preventDefault());
+addEventListener('drop', e => {
+  e.preventDefault(); dragDepth = 0; stage.classList.remove('drag');
+  const dt = e.dataTransfer; if (!dt) return;
+  if (dt.files?.length) return void addFiles(dt.files);
+  let url = (dt.getData('text/uri-list') || '').split('\n').find(l => l && !l.startsWith('#'));
+  if (!url) { const m = /<img[^>]+src=["']([^"']+)["']/i.exec(dt.getData('text/html') || ''); url = m?.[1]; }
+  if (!url) url = dt.getData('text/plain');
+  if (url) addURL(url);
+});
+
+/* pegar (imagen del portapapeles o enlace) */
+addEventListener('paste', e => {
+  if (e.target instanceof HTMLInputElement) return;
+  const cd = e.clipboardData; if (!cd) return;
+  if (cd.files?.length) { e.preventDefault(); addFiles(cd.files); return; }
+  const t = cd.getData('text/plain').trim();
+  if (/^https?:\/\//i.test(t)) { e.preventDefault(); addURL(t); }
+});
+
+/* quitar todo / capturar / iniciar */
+$('#btnClear').addEventListener('click', () => { items.forEach(i => i.on = false); refreshButtons(); });
+$('#btnShot').addEventListener('click', () => {
+  if (!running) return;
+  view.toBlob(b => {
+    if (!b) return;
+    const a = document.createElement('a'), u = URL.createObjectURL(b);
+    a.href = u; a.download = `probador-${new Date().toISOString().replace(/[-:T]/g, '').slice(0, 14)}.png`;
+    document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(u), 2000);
+  }, 'image/png');
+});
+btnStart.addEventListener('click', startCamera);
+addEventListener('pagehide', () => stream?.getTracks().forEach(t => t.stop()));
+
+/* =====================================================================
+   PRENDAS DE EJEMPLO (SVG, solo para probar)
+   ===================================================================== */
+const svg = (w, h, body) => new Blob([`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${body}</svg>`], { type: 'image/svg+xml' });
+const DEMOS = [
+  ['camisa-azul', svg(420, 380, `<path d="M135 14Q210 62 285 14L400 70 362 160 316 138V366H104V138L58 160 20 70Z" fill="#3b5b84"/><path d="M135 14Q210 62 285 14Q210 40 135 14Z" fill="#2a4261"/><path d="M104 138V366M316 138V366" stroke="#2f4a6d" stroke-width="3" opacity=".5"/>`)],
+  ['blazer-negro', svg(440, 470, `<path d="M158 10 214 190 270 10 316 22 424 80 388 280 338 258V458H102V258L52 280 16 80 124 22Z" fill="#2a2a2e"/><path d="M158 10 214 190 150 150 124 22Z" fill="#3a3a40"/><path d="M270 10 214 190 278 150 316 22Z" fill="#3a3a40"/><path d="M214 190V458" stroke="#1a1a1d" stroke-width="3"/><circle cx="226" cy="300" r="5" fill="#555"/>`)],
+  ['lentes-negros', svg(360, 120, `<g fill="rgba(25,25,25,.28)" stroke="#111" stroke-width="9"><rect x="14" y="22" width="140" height="82" rx="30"/><rect x="206" y="22" width="140" height="82" rx="30"/></g><path d="M154 46Q180 28 206 46" fill="none" stroke="#111" stroke-width="9"/><path d="M14 40 2 34M346 40l12-6" stroke="#111" stroke-width="9" stroke-linecap="round"/>`)],
+  ['gorro-rojo', svg(340, 250, `<path d="M20 180C20 60 90 18 170 18S320 60 320 180Z" fill="#a3302e"/><rect x="8" y="160" width="324" height="78" rx="22" fill="#8a2523"/><path d="M50 166V232M90 166V232M130 166V232M170 166V232M210 166V232M250 166V232M290 166V232" stroke="#6f1c1b" stroke-width="4"/>`)],
+  ['chalina-beige', svg(420, 260, `<path d="M8 40Q210 0 412 40V128Q210 90 8 128Z" fill="#c9b79c"/><path d="M262 108H352L376 252H282Z" fill="#b9a587"/><path d="M8 62Q210 24 412 62M8 92Q210 54 412 92" fill="none" stroke="#a8946f" stroke-width="3" opacity=".7"/>`)]
+];
+const DEMO_CATS = ['top', 'jacket', 'glasses', 'hat', 'scarf'];
+$('#btnDemo').addEventListener('click', async () => {
+  for (let i = 0; i < DEMOS.length; i++) {
+    try {
+      const it = await addImage(DEMOS[i][1], DEMOS[i][0]);
+      it.cat = DEMO_CATS[i]; processItem(it); it.on = i === 0 || i === 2;     // camisa y lentes activos de inicio
+    } catch (e) { console.error(e); }
+  }
+  buildItems(); editingId = null; panel.hidden = true;
+  for (const k of neededTrackers()) ensureModel(k);
+});
+
+buildItems();
+</script>
+</body>
+</html>
